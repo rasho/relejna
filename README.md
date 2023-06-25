@@ -1,6 +1,6 @@
 # Relejna stanica - README
 
-Ovaj projekat predstavlja implementaciju jednostavne aplikacije za praćenje artikala u relejnoj stanici. Aplikacija omogućava upravljanje inventarom artikala, izdavanje artikala, praćenje količina i generisanje izveštaja.
+Ovaj projekat predstavlja implementaciju jednostavne aplikacije za praćenje stanja u magacinu relejne zastite. Aplikacija omogućava upravljanje inventarom artikala, izdavanje artikala, praćenje količina i generisanje izveštaja.
 
 ## Prerequisites
 
