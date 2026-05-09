@@ -1,11 +1,14 @@
 import os
 import sqlite3
-from tabulate import tabulate
+import questionary
+from rich.console import Console
+from rich.table import Table
+from rich.panel import Panel
+from rich.text import Text
+from rich import box
 
-# Postavke terminala
-os.system("clear" if os.name == "posix" else "cls")
+console = Console()
 
-# Kreiranje baze podataka
 conn = sqlite3.connect("artikli.db")
 c = conn.cursor()
 
@@ -28,106 +31,142 @@ c.execute("""CREATE TABLE IF NOT EXISTS Izdavanje (
 conn.commit()
 
 
-# Prikazuje glavni meni
-def prikazi_meni():
-    print("=============== GLAVNI MENI ===============")
-    print("1. Prikaz liste artikala")
-    print("2. Dodavanje novog artikla")
-    print("3. Ažuriranje količine artikla")
-    print("4. Izdavanje artikla")
-    print("5. Prikaz istorije izdavanja artikala")
-    print("6. Pretraga artikala")
-    print("7. Generisanje izveštaja")
-    print("8. Izvoz liste artikala u CSV format")
-    print("9. Izvoz liste artikala u PDF format")
-    print("10. Izvoz liste artikala sa kritičnom količinom u PDF format")
-    print("11. Izlaz")
-    print("============================================")
-
-
-# Prikazuje listu artikala
-def prikazi_listu_artikala():
+def obrisi_ekran():
     os.system("clear" if os.name == "posix" else "cls")
+
+
+def header(naslov):
+    console.print(Panel(
+        Text(naslov, justify="center", style="bold cyan"),
+        border_style="cyan",
+        padding=(0, 2)
+    ))
+    console.print()
+
+
+def prikazi_listu_artikala():
+    obrisi_ekran()
+    header("LISTA ARTIKALA")
 
     c.execute("SELECT * FROM Artikli")
     artikli = c.fetchall()
 
     if not artikli:
-        print("Nema artikala u bazi.")
+        console.print("[yellow]Nema artikala u bazi.[/yellow]")
     else:
-        print("=============== LISTA ARTIKALA ===============")
-        print(tabulate(artikli, headers=["ID", "Axapta", "Naziv", "Količina", "Kritična Količina", "Poslednje Izdavanje"]))
-        print("==============================================")
+        tabela = Table(box=box.ROUNDED, border_style="cyan", header_style="bold magenta")
+        tabela.add_column("ID", style="dim", width=5)
+        tabela.add_column("Axapta", style="cyan")
+        tabela.add_column("Naziv")
+        tabela.add_column("Količina", justify="right")
+        tabela.add_column("Kritična kol.", justify="right", style="red")
+        tabela.add_column("Poslednje izdavanje", style="dim")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+        for a in artikli:
+            kol = a[3]
+            krit = a[4]
+            kol_str = f"[bold red]{kol}[/bold red]" if kol <= krit else f"[green]{kol}[/green]"
+            tabela.add_row(str(a[0]), str(a[1] or ""), str(a[2] or ""), kol_str,
+                           str(krit), str(a[5] or "-"))
+
+        console.print(tabela)
+
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Dodaje novi artikal
 def dodaj_artikal():
-    os.system("clear" if os.name == "posix" else "cls")
+    obrisi_ekran()
+    header("DODAVANJE NOVOG ARTIKLA")
 
-    axapta = input("Unesite šifru artikla (Axapta): ")
-    naziv = input("Unesite naziv artikla: ")
-    kolicina = int(input("Unesite početnu količinu artikla: "))
-    kriticna_kolicina = int(input("Unesite kritičnu količinu artikla: "))
+    axapta = questionary.text("Šifra artikla (Axapta):").ask()
+    naziv = questionary.text("Naziv artikla:").ask()
+    kolicina = int(questionary.text("Početna količina:").ask())
+    kriticna = int(questionary.text("Kritična količina:").ask())
 
     c.execute("INSERT INTO Artikli (Axapta, Naziv, Kolicina, KriticnaKolicina) VALUES (?, ?, ?, ?)",
-              (axapta, naziv, kolicina, kriticna_kolicina))
-
+              (axapta, naziv, kolicina, kriticna))
     conn.commit()
-    print("Artikal je uspešno dodat u bazu.")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+    console.print("\n[green]✓ Artikal je uspešno dodat u bazu.[/green]")
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Ažurira količinu artikla
 def azuriraj_kolicinu_artikla():
-    os.system("clear" if os.name == "posix" else "cls")
+    obrisi_ekran()
+    header("AŽURIRANJE KOLIČINE ARTIKLA")
 
-    prikazi_listu_artikala()
+    c.execute("SELECT ID, Axapta, Naziv, Kolicina FROM Artikli")
+    artikli = c.fetchall()
 
-    artikal_id = int(input("Unesite ID artikla: "))
-    nova_kolicina = int(input("Unesite novu količinu artikla: "))
+    if not artikli:
+        console.print("[yellow]Nema artikala u bazi.[/yellow]")
+        console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
+        return
 
-    c.execute("UPDATE Artikli SET Kolicina = ? WHERE ID = ?", (nova_kolicina, artikal_id))
+    choices = [f"[{a[0]}] {a[1]} – {a[2]}  (trenutno: {a[3]})" for a in artikli]
+    choices.append("← Odustani")
 
+    izbor = questionary.select("Izaberite artikal:", choices=choices).ask()
+
+    if izbor == "← Odustani" or izbor is None:
+        return
+
+    artikal_id = int(izbor.split("]")[0][1:])
+    nova = int(questionary.text("Nova količina:").ask())
+
+    c.execute("UPDATE Artikli SET Kolicina = ? WHERE ID = ?", (nova, artikal_id))
     conn.commit()
-    print("Količina artikla je uspešno ažurirana.")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+    console.print("\n[green]✓ Količina je uspešno ažurirana.[/green]")
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Izdaje artikal
 def izdavanje_artikla():
-    os.system("clear" if os.name == "posix" else "cls")
+    obrisi_ekran()
+    header("IZDAVANJE ARTIKLA")
 
-    prikazi_listu_artikala()
+    c.execute("SELECT ID, Axapta, Naziv, Kolicina FROM Artikli WHERE Kolicina > 0")
+    artikli = c.fetchall()
 
-    artikal_id = int(input("Unesite ID artikla: "))
-    kolicina = int(input("Unesite količinu za izdavanje: "))
+    if not artikli:
+        console.print("[yellow]Nema dostupnih artikala na stanju.[/yellow]")
+        console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
+        return
 
+    choices = [f"[{a[0]}] {a[1]} – {a[2]}  (dostupno: {a[3]})" for a in artikli]
+    choices.append("← Odustani")
+
+    izbor = questionary.select("Izaberite artikal za izdavanje:", choices=choices).ask()
+
+    if izbor == "← Odustani" or izbor is None:
+        return
+
+    artikal_id = int(izbor.split("]")[0][1:])
     c.execute("SELECT Kolicina FROM Artikli WHERE ID = ?", (artikal_id,))
-    stara_kolicina = c.fetchone()[0]
+    stara = c.fetchone()[0]
 
-    if kolicina > stara_kolicina:
-        print("Nema dovoljno artikala na stanju.")
+    kolicina = int(questionary.text(f"Količina za izdavanje (max {stara}):").ask())
+
+    if kolicina > stara:
+        console.print("\n[red]✗ Nema dovoljno artikala na stanju.[/red]")
     else:
-        nova_kolicina = stara_kolicina - kolicina
-        c.execute("UPDATE Artikli SET Kolicina = ? WHERE ID = ?", (nova_kolicina, artikal_id))
+        datum = questionary.text("Datum izdavanja (dd.mm.gggg):").ask()
+        nova = stara - kolicina
 
-        datum_izdavanja = input("Unesite datum izdavanja (dd.mm.gggg): ")
+        c.execute("UPDATE Artikli SET Kolicina = ?, PoslednjeIzdavanje = ? WHERE ID = ?",
+                  (nova, datum, artikal_id))
         c.execute("INSERT INTO Izdavanje (ArtikalID, Kolicina, DatumIzdavanja) VALUES (?, ?, ?)",
-                  (artikal_id, kolicina, datum_izdavanja))
-
+                  (artikal_id, kolicina, datum))
         conn.commit()
-        print("Artikal je uspešno izdat.")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+        console.print("\n[green]✓ Artikal je uspešno izdat.[/green]")
+
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Prikazuje istoriju izdavanja artikala
 def prikazi_istoriju_izdavanja():
-    os.system("clear" if os.name == "posix" else "cls")
+    obrisi_ekran()
+    header("ISTORIJA IZDAVANJA")
 
     c.execute("""SELECT a.ID, a.Axapta, a.Naziv, i.Kolicina, i.DatumIzdavanja
                  FROM Artikli a
@@ -136,140 +175,200 @@ def prikazi_istoriju_izdavanja():
     istorija = c.fetchall()
 
     if not istorija:
-        print("Nema dostupne istorije izdavanja.")
+        console.print("[yellow]Nema dostupne istorije izdavanja.[/yellow]")
     else:
-        print("================= ISTORIJA IZDAVANJA =================")
-        print(tabulate(istorija, headers=["ID", "Axapta", "Naziv", "Količina", "Datum Izdavanja"]))
-        print("=====================================================")
+        tabela = Table(box=box.ROUNDED, border_style="blue", header_style="bold blue")
+        tabela.add_column("ID", style="dim", width=5)
+        tabela.add_column("Axapta", style="cyan")
+        tabela.add_column("Naziv")
+        tabela.add_column("Količina", justify="right", style="yellow")
+        tabela.add_column("Datum izdavanja", style="green")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+        for red in istorija:
+            tabela.add_row(*[str(v or "-") for v in red])
+
+        console.print(tabela)
+
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Pretraga artikala
 def pretrazi_artikle():
-    os.system("clear" if os.name == "posix" else "cls")
+    obrisi_ekran()
+    header("PRETRAGA ARTIKALA")
 
-    pretraga = input("Unesite pojam za pretragu (šifra artikla, naziv): ")
+    pretraga = questionary.text("Unesite pojam za pretragu (šifra ili naziv):").ask()
 
-    c.execute("SELECT * FROM Artikli WHERE Axapta LIKE ? OR Naziv LIKE ?", ('%' + pretraga + '%', '%' + pretraga + '%'))
+    c.execute("SELECT * FROM Artikli WHERE Axapta LIKE ? OR Naziv LIKE ?",
+              (f"%{pretraga}%", f"%{pretraga}%"))
     rezultati = c.fetchall()
 
+    console.print()
+
     if not rezultati:
-        print("Nema rezultata pretrage.")
+        console.print("[yellow]Nema rezultata pretrage.[/yellow]")
     else:
-        print("==================== REZULTATI PRETRAGE ====================")
-        print(tabulate(rezultati, headers=["ID", "Axapta", "Naziv", "Količina", "Kritična Količina", "Poslednje Izdavanje"]))
-        print("===========================================================")
+        tabela = Table(box=box.ROUNDED, border_style="magenta", header_style="bold magenta")
+        tabela.add_column("ID", style="dim", width=5)
+        tabela.add_column("Axapta", style="cyan")
+        tabela.add_column("Naziv")
+        tabela.add_column("Količina", justify="right", style="green")
+        tabela.add_column("Kritična kol.", justify="right", style="red")
+        tabela.add_column("Poslednje izdavanje", style="dim")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+        for a in rezultati:
+            tabela.add_row(*[str(v or "-") for v in a])
+
+        console.print(tabela)
+
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Generiše izveštaj o artiklima
 def generisi_izvestaj():
-    os.system("clear" if os.name == "posix" else "cls")
+    obrisi_ekran()
+    header("IZVEŠTAJ O ARTIKLIMA")
 
     c.execute("SELECT * FROM Artikli")
     artikli = c.fetchall()
 
     if not artikli:
-        print("Nema artikala u bazi.")
+        console.print("[yellow]Nema artikala u bazi.[/yellow]")
     else:
-        print("============= IZVEŠTAJ O ARTIKLIMA =============")
-        print(tabulate(artikli, headers=["ID", "Axapta", "Naziv", "Količina", "Kritična Količina", "Poslednje Izdavanje"]))
-        print("================================================")
+        kriticni = [a for a in artikli if a[3] <= a[4]]
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+        console.print(f"  Ukupno artikala:                [bold]{len(artikli)}[/bold]")
+        console.print(f"  Artikala ispod kritičnog nivoa: [bold red]{len(kriticni)}[/bold red]\n")
+
+        tabela = Table(box=box.ROUNDED, border_style="green", header_style="bold green")
+        tabela.add_column("ID", style="dim", width=5)
+        tabela.add_column("Axapta", style="cyan")
+        tabela.add_column("Naziv")
+        tabela.add_column("Količina", justify="right")
+        tabela.add_column("Kritična kol.", justify="right", style="red")
+        tabela.add_column("Poslednje izdavanje", style="dim")
+
+        for a in artikli:
+            kol = a[3]
+            krit = a[4]
+            kol_str = f"[bold red]{kol}[/bold red]" if kol <= krit else f"[green]{kol}[/green]"
+            tabela.add_row(str(a[0]), str(a[1] or ""), str(a[2] or ""), kol_str,
+                           str(krit), str(a[5] or "-"))
+
+        console.print(tabela)
+
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Izvoz liste artikala u CSV format
-def export_liste_artikala_csv():
-    os.system("clear" if os.name == "posix" else "cls")
+def export_csv():
+    obrisi_ekran()
+    header("IZVOZ U CSV")
 
     c.execute("SELECT * FROM Artikli")
     artikli = c.fetchall()
 
     if not artikli:
-        print("Nema artikala u bazi.")
+        console.print("[yellow]Nema artikala u bazi.[/yellow]")
     else:
-        filename = input("Unesite naziv CSV datoteke za izvoz: ")
-        with open(filename, 'w') as file:
-            headers = ["ID", "Axapta", "Naziv", "Količina", "Kritična Količina", "Poslednje Izdavanje"]
-            file.write(";".join(headers) + "\n")
-            for artikal in artikli:
-                file.write(";".join([str(value) for value in artikal]) + "\n")
+        filename = questionary.text("Naziv datoteke:").ask()
+        if not filename.endswith(".csv"):
+            filename += ".csv"
 
-        print("Artikli su uspešno izvezeni u CSV datoteku.")
+        with open(filename, "w", encoding="utf-8") as f:
+            f.write("ID;Axapta;Naziv;Količina;Kritična Količina;Poslednje Izdavanje\n")
+            for a in artikli:
+                f.write(";".join([str(v or "") for v in a]) + "\n")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+        console.print(f"\n[green]✓ Izvezeno u:[/green] [bold]{filename}[/bold]")
+
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Izvoz liste artikala u PDF format
-def export_liste_artikala_pdf():
-    os.system("clear" if os.name == "posix" else "cls")
+def export_pdf(samo_kriticni=False):
+    obrisi_ekran()
+    naslov = "IZVOZ KRITIČNIH ARTIKALA U PDF" if samo_kriticni else "IZVOZ U PDF"
+    header(naslov)
 
-    from reportlab.lib.pagesizes import letter
-    from reportlab.pdfgen import canvas
+    try:
+        from reportlab.lib.pagesizes import letter
+        from reportlab.pdfgen import canvas as pdf_canvas
+    except ImportError:
+        console.print("[red]✗ reportlab nije instaliran. Pokrenite: pip install reportlab[/red]")
+        console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
+        return
 
-    c.execute("SELECT * FROM Artikli")
+    if samo_kriticni:
+        c.execute("SELECT * FROM Artikli WHERE Kolicina <= KriticnaKolicina")
+        filename = "kriticni_artikli.pdf"
+    else:
+        c.execute("SELECT * FROM Artikli")
+        filename = "lista_artikala.pdf"
+
     artikli = c.fetchall()
 
     if not artikli:
-        print("Nema artikala u bazi.")
+        msg = "Nema artikala sa kritičnom količinom." if samo_kriticni else "Nema artikala u bazi."
+        console.print(f"[yellow]{msg}[/yellow]")
     else:
-        pdf = canvas.Canvas("lista_artikala.pdf", pagesize=letter)
-
-        # Dodajemo header
-        header = ["ID", "Axapta", "Naziv", "Količina", "Kritična Količina", "Poslednje Izdavanje"]
+        pdf = pdf_canvas.Canvas(filename, pagesize=letter)
+        cols = ["ID", "Axapta", "Naziv", "Količina", "Krit. Kol.", "Poslednje Izdavanje"]
         y = 750
-        for column, title in enumerate(header):
-            pdf.drawString(50 + column * 100, y, title)
-
-        # Dodajemo sadržaj
+        for i, title in enumerate(cols):
+            pdf.drawString(50 + i * 90, y, title)
         y -= 20
-        for artikal in artikli:
-            for column, value in enumerate(artikal):
-                pdf.drawString(50 + column * 100, y, str(value))
+        for a in artikli:
+            for i, val in enumerate(a):
+                pdf.drawString(50 + i * 90, y, str(val or ""))
             y -= 20
-
+            if y < 50:
+                pdf.showPage()
+                y = 750
         pdf.save()
-        print("Artikli su uspešno izvezeni u PDF datoteku.")
+        console.print(f"\n[green]✓ PDF sačuvan kao:[/green] [bold]{filename}[/bold]")
 
-    input("Pritisnite Enter za povratak na glavni meni.")
+    console.input("\n[dim]Pritisnite Enter za povratak...[/dim]")
 
 
-# Glavna funkcija
+MENI = [
+    ("Lista artikala",                    prikazi_listu_artikala),
+    ("Dodavanje novog artikla",           dodaj_artikal),
+    ("Ažuriranje količine artikla",       azuriraj_kolicinu_artikla),
+    ("Izdavanje artikla",                 izdavanje_artikla),
+    ("Istorija izdavanja",                prikazi_istoriju_izdavanja),
+    ("Pretraga artikala",                 pretrazi_artikle),
+    ("Izveštaj",                          generisi_izvestaj),
+    ("Izvoz u CSV",                       export_csv),
+    ("Izvoz u PDF",                       lambda: export_pdf(False)),
+    ("Izvoz kritičnih artikala u PDF",    lambda: export_pdf(True)),
+    ("Izlaz",                             None),
+]
+
+
 def main():
     while True:
-        os.system("clear" if os.name == "posix" else "cls")
+        obrisi_ekran()
 
-        prikazi_meni()
+        console.print(Panel(
+            "[bold cyan]RELEJNA – UPRAVLJANJE ARTIKLIMA[/bold cyan]",
+            subtitle="[dim]↑ ↓  kretanje    Enter  potvrda[/dim]",
+            border_style="cyan",
+            padding=(1, 4),
+        ))
 
-        izbor = input("Izaberite opciju (1-11): ")
+        labels = [naziv for naziv, _ in MENI]
+        izbor_label = questionary.select(
+            "Izaberite opciju:",
+            choices=labels,
+            use_shortcuts=False,
+        ).ask()
 
-        if izbor == "1":
-            prikazi_listu_artikala()
-        elif izbor == "2":
-            dodaj_artikal()
-        elif izbor == "3":
-            azuriraj_kolicinu_artikla()
-        elif izbor == "4":
-            izdavanje_artikla()
-        elif izbor == "5":
-            prikazi_istoriju_izdavanja()
-        elif izbor == "6":
-            pretrazi_artikle()
-        elif izbor == "7":
-            generisi_izvestaj()
-        elif izbor == "8":
-            export_liste_artikala_csv()
-        elif izbor == "9":
-            export_liste_artikala_pdf()
-        elif izbor == "10":
-            export_liste_artikala_pdf()
-        elif izbor == "11":
+        if izbor_label is None or izbor_label == "Izlaz":
+            obrisi_ekran()
+            console.print("[cyan]Doviđenja![/cyan]\n")
             break
-        else:
-            input("Pogrešan izbor. Pritisnite Enter za povratak na glavni meni.")
+
+        for naziv, akcija in MENI:
+            if naziv == izbor_label:
+                akcija()
+                break
 
 
 if __name__ == "__main__":
