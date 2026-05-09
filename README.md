@@ -1,51 +1,89 @@
-# Relejna stanica - README
+# Relejna stanica – Upravljanje magacinom
 
-Ovaj projekat predstavlja implementaciju jednostavne aplikacije za praćenje stanja u magacinu relejne zastite. Aplikacija omogućava upravljanje inventarom artikala, izdavanje artikala, praćenje količina i generisanje izveštaja.
+Aplikacija za praćenje stanja u magacinu relejne zaštite. Omogućava kompletno upravljanje inventarom: evidenciju prijema i izdavanja artikala, praćenje kritičnih zaliha, pretragu, filtriranje i izvoz izveštaja.
 
-## Prerequisites
+Navigacija je zasnovana na strelicama (↑ ↓ Enter) — bez kucanja brojeva.
 
-- Python 3.x
-- SQLite3
-- Potrebne biblioteke (instalirajte ih koristeći `pip install` komandu):
-  - tabulate
-  - reportlab
+---
+
+## Zahtevi
+
+- Python 3.8+
+- SQLite3 (ugrađen u Python)
+
+### Python biblioteke
+
+```
+pip install questionary rich reportlab
+```
+
+| Biblioteka | Svrha |
+|---|---|
+| `questionary` | Interaktivna navigacija strelicama |
+| `rich` | Bojene tabele i paneli u terminalu |
+| `reportlab` | Generisanje PDF izveštaja |
+
+---
 
 ## Instalacija
 
-1. Klonirajte repozitorijum na vaš lokalni računar.
-2. U terminalu ili komandnoj liniji navigirajte do direktorijuma gde je repozitorijum kloniran.
-3. Kreirajte virtuelno okruženje (opciono, ali preporučljivo).
-4. Instalirajte potrebne biblioteke koristeći `pip install` komandu:
-   ```
-   pip install tabulate reportlab
-   ```
+```bash
+git clone https://github.com/rasho/relejna.git
+cd relejna
+pip install questionary rich reportlab
+python relejna.py
+```
 
-## Upotreba
-
-1. U terminalu ili komandnoj liniji, navigirajte do direktorijuma gde se nalazi projekat.
-2. Pokrenite `relejna.py` fajl:
-   ```
-   python relejna.py
-   ```
-3. Pratite instrukcije koje se prikazuju na ekranu za korišćenje različitih funkcionalnosti aplikacije.
+---
 
 ## Funkcionalnosti
 
-- Prikaz liste artikala
-- Dodavanje novog artikla
-- Ažuriranje količine artikla
-- Izdavanje artikla
-- Prikaz istorije izdavanja
-- Pretraga artikala
-- Generisanje izveštaja o artiklima
-- Izvoz liste artikala u CSV format
-- Izvoz liste artikala u PDF format
-- Izvoz liste artikala sa kritičnom količinom u PDF format
+### Dashboard
+- Pregled ukupnog broja artikala i komada na stanju
+- Lista artikala koji su ispod kritičnog nivoa
+- Pregled poslednje aktivnosti (prijemi i izdavanja)
+
+### Upravljanje artiklima
+- Dodavanje novog artikla (Axapta šifra, naziv, količina, kritična količina, lokacija)
+- Izmena podataka artikla
+- Ažuriranje količine
+- Brisanje artikla (soft delete — istorija se čuva)
+
+### Prijem i izdavanje
+- Evidencija prijema robe sa datumom i napomenom
+- Evidencija izdavanja sa automatskim odbijanjem od stanja
+- Upozorenje pri izdavanju ako količina dostiže kritičan nivo
+- Istorija svih prijema i izdavanja
+
+### Pretraga i filtriranje
+- Pretraga po Axapta šifri ili nazivu
+- Filtriranje liste: sve / samo kritične / sortirano po količini ili nazivu
+
+### Izvoz i backup
+- Izvoz kompletne liste u CSV
+- Izvoz u PDF (kompletna lista ili samo kritični artikli)
+- Backup baze podataka sa timestamp-om u nazivu fajla
+
+---
+
+## Baza podataka
+
+Aplikacija koristi SQLite (`artikli.db`). Baza se kreira automatski pri prvom pokretanju. Ako je baza starija verzije, migracija se izvršava automatski bez gubitka podataka.
+
+### Tabele
+
+| Tabela | Opis |
+|---|---|
+| `Artikli` | Katalog artikala sa stanjem i lokacijom |
+| `Izdavanje` | Istorija svih izdavanja |
+| `Prijem` | Istorija svih prijema robe |
+
+---
 
 ## Autor
 
-- [Radenko Bogdanovic](https://github.com/rasho)
+[Radenko Bogdanovic](https://github.com/rasho)
 
-## Licence
+## Licenca
 
-Ovaj projekat je licenciran pod [MIT licencom](LICENSE).
+[MIT](LICENSE)
